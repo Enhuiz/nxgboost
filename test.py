@@ -1,3 +1,5 @@
-a = [1, 2, 3]
-a.remove(4)
-print a
+a = 1
+b = 2
+a, b = b, a+1
+
+print a, b

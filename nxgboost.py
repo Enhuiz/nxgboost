@@ -1,13 +1,14 @@
 import numpy as np
+from heap import Heap
 
 class SquareLoss(object):
     def __init__(self):
         pass
 
-    def G(self, target, prediction):
+    def G(self, prediction, target):
         return 2 * (prediction - target)
         
-    def H(self, target, prediction):
+    def H(self, prediction, target):
         return 2
                         
 class NXGBoost(object):
@@ -15,61 +16,66 @@ class NXGBoost(object):
         self.loss_func = SquareLoss()
         self.roots = []
 
-    def fit(self, x, y, n_estimators=100, lambd=0.1, max_depth=2):
+    def fit(self, x, y, n_estimators=100, eta=0.1, lambd=0.1, max_depth=2):
         samples = self.init_samples(x, y)
         for _ in xrange(n_estimators):
-            root = self.build_tree(max_depth, lambd, samples)
+            root = self.build_tree(eta, lambd, max_depth, samples)
             self.roots.append(root)
             self.refresh_prediction(root)
     
     def predict(self, x):
-        return np.array([np.sum([self.score(root, row) for root in self.roots]) for row in x])
+        return np.array([np.sum([self.weight(root, row) for root in self.roots]) for row in x])
 
     def init_samples(self, x, y): # x: n*m, y: n*1
         samples = []
         for i in xrange(len(x)):
             samples.append({
                 'features': x[i],
-                'target': y[i],
+                'target': float(y[i]),
                 'prediction': 0,
             })
         return samples
 
-    def build_tree(self, depth, lambd, samples):
+    def build_tree(self, eta, lambd, max_depth, samples):
         root = {
             'k': None,
             'w': None,
             'val': None,
             'lc': None,
             'rc': None,
+            'depth': 1,
             'samples': samples,
         }
-        G = np.sum([self.loss_func.G(sample['target'], sample['prediction']) 
+        G = np.sum([self.loss_func.G(sample['prediction'], sample['target']) 
             for sample in samples])
-        H = np.sum([self.loss_func.H(sample['target'], sample['prediction'])
+        H = np.sum([self.loss_func.H(sample['prediction'], sample['target'])
             for sample in samples])
-        self.build_tree_helper(root, depth, lambd, G, H)
+
+        max_heap = Heap(cmp=lambda a, b: a[0] - b[0])
+
+        max_heap.push(self.split_attempt(root, eta, lambd, G, H))
+
+        while len(max_heap) > 0:
+            neg_score, node, lc, rc, k, val = max_heap.pop()
+
+            if neg_score == np.inf:
+                break
+
+            if node['depth'] >= max_depth:
+                break
+
+            node['lc'] = lc
+            node['rc'] = rc
+            node['w'] = None
+            node['k'] = k
+            node['val'] = val
+
+            max_heap.push(self.split_attempt(lc, eta, lambd, G, H))
+            max_heap.push(self.split_attempt(rc, eta, lambd, G, H))
+
         return root
 
-    def build_tree_helper(self, node, depth, lambd, G, H):
-        if node is None or node['samples'] is None or depth <= 0:
-            return
-        self.split(node, lambd, G, H)
-        self.build_tree_helper(node['lc'], depth-1, lambd, G, H)
-        self.build_tree_helper(node['rc'], depth-1, lambd, G, H)
-
-    def refresh_prediction(self, node):
-        if node is None:
-            return
-        elif node['w'] is not None:
-            for sample in node['samples']:
-                sample['prediction'] += node['w']
-        else:
-            self.refresh_prediction(node['lc'])
-            self.refresh_prediction(node['rc'])
-
-
-    def split(self, node, lambd, G, H):
+    def split_attempt(self, node, eta, lambd, G, H):
         samples = node['samples']
 
         max_score = -np.inf
@@ -85,20 +91,22 @@ class NXGBoost(object):
             sorted_samples = sorted(samples, key=lambda sample: sample['features'][k])
             for j in xrange(len(sorted_samples)):
                 sample = sorted_samples[j]
-                GL += self.loss_func.G(sample['target'], sample['prediction'])
-                HL += self.loss_func.H(sample['target'], sample['prediction'])
+                GL += self.loss_func.G(sample['prediction'], sample['target'])
+                HL += self.loss_func.H(sample['prediction'], sample['target'])
                 GR = G - GL
                 HR = G - HL
                 score = GL**2/(HL + lambd) + GR**2/(GR + lambd) - G**2/(H + lambd)
                 if max_score < score:
                     split_k = k
                     split_val = sample['features'][k]
-                    split_w_l = - GL / (HL + lambd)
-                    split_w_r = - GR / (HR + lambd)
+                    split_w_l = -GL/(HL + lambd) * eta
+                    split_w_r = -GR/(HR + lambd) * eta
                     split_samples_l = sorted_samples[:j]
                     split_samples_r = sorted_samples[j:]
                     max_score = score
+
         children = []
+
         if len(split_samples_l) != 0:
             children.append({
                 'w': split_w_l,
@@ -106,8 +114,10 @@ class NXGBoost(object):
                 'val': None,
                 'lc': None,
                 'rc': None,
+                'depth': node['depth'] + 1,
                 'samples': split_samples_l,
             })
+
         if len(split_samples_r) != 0:
             children.append({
                 'w': split_w_r,
@@ -115,20 +125,31 @@ class NXGBoost(object):
                 'val': None,
                 'lc': None,
                 'rc': None,
+                'depth': node['depth'] + 1,
                 'samples': split_samples_r,
             })
-        if len(children) == 2:
-            node['w'] = None
-            node['k'] = split_k
-            node['val'] = split_val
-            node['lc'] = children[0]
-            node['rc'] = children[1]
 
-    def score(self, node, x):
+        # The score is negatived to fit the min heap
+        if len(children) == 2:
+            return -max_score, node, children[0], children[1], split_k, split_val
+        else:
+            return np.inf, None, None, None, None, None
+
+    def refresh_prediction(self, node):
+        if node is None:
+            return
+        elif node['w'] is not None:
+            for sample in node['samples']:
+                sample['prediction'] += node['w']
+        else:
+            self.refresh_prediction(node['lc'])
+            self.refresh_prediction(node['rc'])
+
+    def weight(self, node, x):
         if node['k'] is None:
             return node['w'] or 0
         else:
             if x[node['k']] < node['val']:
-                return self.score(node['lc'], x)
+                return self.weight(node['lc'], x)
             else:
-                return self.score(node['rc'], x)
+                return self.weight(node['rc'], x)

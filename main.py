@@ -1,4 +1,7 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import os
 from nxgboost import NXGBoost
 from sklearn.ensemble import RandomForestRegressor
 
@@ -32,23 +35,43 @@ def load_data(name):
 
 def nxgb_callback(train_x, train_y, test_x):
     nxgb = NXGBoost()
-    nxgb.fit(train_x, train_y, n_estimators=5, lambd=1e-4, max_depth=5)
+    nxgb.fit(train_x, train_y, n_estimators=30, eta=1e-1, lambd=1e-3, max_depth=10)
     return nxgb.predict(test_x)
 
 def rf_callback(train_x, train_y, test_x):
-    rf = RandomForestRegressor(n_estimators=5)
+    rf = RandomForestRegressor(n_estimators=30, max_depth=10)
     rf.fit(train_x, train_y.ravel())
     return rf.predict(test_x)
 
-def run(callback, train_x, train_y, test_x, test_y):
+def run_model(callback, train_x, train_y, test_x, test_y):
     test_y_ = []
     for i in xrange(int(train_y.max()) + 1):
         test_y_.append(callback(train_x, (train_y == i).astype(np.float32), test_x).reshape([-1, 1]))
     test_y_ = np.argmax(test_y_, axis=0)
+    print test_y_.ravel()
     return np.mean(np.equal(test_y_, test_y).astype(np.float32))
 
+def run(name):
+    data = load_data(name)
+    nxgb_acc = run_model(nxgb_callback, *data)
+    rf_acc = run_model(rf_callback, *data)
+
+    fig, ax = plt.subplots()
+    sns.barplot(['nxgboost', 'random forest'], [nxgb_acc, rf_acc], palette='Set3', ax=ax)
+    ax.set_ylabel('accuracy')
+    fig.savefig('fig/' + name + '.png')
+    plt.title('dataset ' + name)
+    # plt.show()
+
 if __name__ == '__main__':
-    np.random.seed(27)
-    data = load_data('wdbc')
-    print 'nxgb accuracy:', run(nxgb_callback, *data)
-    print 'random forest accuracy:', run(rf_callback, *data)
+    np.random.seed(5)
+    dataset_names = set()
+    for file in os.listdir('data'):
+        filename = file.split('.txt')[0]
+        dataset_names.add(filename.split('label')[0])
+    i = 0
+    for dataset_name in dataset_names:
+        i += 1
+        print '[' + str(i) + '/' + str(len(dataset_names)) + ']calculating dataset', dataset_name
+        print '...'
+        run(dataset_name)
