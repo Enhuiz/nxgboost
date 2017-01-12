@@ -22,3 +22,17 @@ To run this, the following python package is needed.
 $ python main.py
 ```
 Some comparision result will be generated into the **/fig** folder.
+
+#Result
+
+![Result](https://github.com/Enhuiz/nxgboost/blob/master/fig/result.png)
+
+Sometimes nxgboost outruns random forest, but in most data sets random forest seems to be better. The result maybe different when different parameters are set.
+
+Parameters
+|parameter|value|
+|-|-|
+|n_estimators of both model|50|
+|max_depth of both model|10|
+|lambda of nxgboost|0.13|
+|eta of nxgboost|0.15|
