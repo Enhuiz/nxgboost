@@ -32,6 +32,6 @@ Sometimes nxgboost outruns random forest, but in most data sets random forest se
 
 ##Parameters
 - n_estimators of both model:  **50**
-- max_depth of both model:     **10**
-- lambda of nxgboost:          **0.13**
-- eta of nxgboost:             **0.15**
+- max_depth of both model:     **5**
+- lambda of nxgboost:          **0.01**
+- eta of nxgboost:             **0.1**

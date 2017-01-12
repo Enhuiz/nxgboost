@@ -24,7 +24,7 @@ def load_data(name):
     data = np.concatenate((x, y), axis=1)
     np.random.shuffle(data)
 
-    n_test = len(data) / 5
+    n_test = len(data) / 3
 
     train_x = data[: -n_test, :-1]
     train_y = data[: -n_test, -1:]
@@ -36,11 +36,11 @@ def load_data(name):
 
 def nxgb_callback(train_x, train_y, test_x):
     nxgb = NXGBoost()
-    nxgb.fit(train_x, train_y, n_estimators=50, eta=15e-2, lambd=13e-2, max_depth=10)
+    nxgb.fit(train_x, train_y, n_estimators=50, eta=0.1, lambd=1e-2, max_depth=5)
     return nxgb.predict(test_x)
 
 def rf_callback(train_x, train_y, test_x):
-    rf = RandomForestRegressor(n_estimators=50, max_depth=10)
+    rf = RandomForestRegressor(n_estimators=50, max_depth=5)
     rf.fit(train_x, train_y.ravel())
     return rf.predict(test_x)
 
@@ -58,12 +58,13 @@ def run(name):
     return nxgb_acc, rf_acc
 
 if __name__ == '__main__':
-    np.random.seed(27)
+    np.random.seed(7)
     dataset_names = set()
     result = []
     for file in os.listdir('data'):
         filename = file.split('.txt')[0]
         dataset_names.add(filename.split('label')[0])
+
     i = 0
     for dataset_name in dataset_names:
         i += 1
@@ -72,7 +73,7 @@ if __name__ == '__main__':
         nxgb_acc, rf_acc = run(dataset_name)
         print 'nxgboost acc:\t', nxgb_acc
         print 'random foreset acc:\t', rf_acc
-        print
+        print ''
 
         result.append(('nxgboost', dataset_name, nxgb_acc))
         result.append(('random forest', dataset_name, rf_acc))
@@ -80,7 +81,6 @@ if __name__ == '__main__':
     print 'Calculation Finished.'
 
     result = pd.DataFrame(result, columns=['model', 'dataset', 'accuracy'])
-
     sns.set(style="whitegrid")
     g = sns.factorplot("dataset", "accuracy", "model", 
                     data=result, saturation=5, 

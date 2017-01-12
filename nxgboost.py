@@ -1,5 +1,5 @@
 import numpy as np
-from heap import Heap
+from heap import MaxHeap
 
 class SquareLoss(object):
     def __init__(self):
@@ -9,14 +9,14 @@ class SquareLoss(object):
         return 2 * (prediction - target)
         
     def H(self, prediction, target):
-        return 2
-                        
+        return 2        
+
 class NXGBoost(object):
     def __init__(self):
         self.loss_func = SquareLoss()
         self.roots = []
 
-    def fit(self, x, y, n_estimators=100, eta=0.1, lambd=0.1, max_depth=2):
+    def fit(self, x, y, n_estimators=100, eta=0.1, lambd=0.1, max_depth=5):
         samples = self.init_samples(x, y)
         for _ in xrange(n_estimators):
             root = self.build_tree(eta, lambd, max_depth, samples)
@@ -46,19 +46,19 @@ class NXGBoost(object):
             'depth': 1,
             'samples': samples,
         }
+
         G = np.sum([self.loss_func.G(sample['prediction'], sample['target']) 
             for sample in samples])
         H = np.sum([self.loss_func.H(sample['prediction'], sample['target'])
             for sample in samples])
 
-        max_heap = Heap(cmp=lambda a, b: a[0] - b[0])
-
+        max_heap = MaxHeap(key=lambda x: x[0])
         max_heap.push(self.split_attempt(root, eta, lambd, G, H))
 
         while len(max_heap) > 0:
-            neg_score, node, lc, rc, k, val = max_heap.pop()
+            gain, node, lc, rc, k, val = max_heap.pop()
 
-            if neg_score == np.inf:
+            if gain == -np.inf:
                 break
 
             if node['depth'] >= max_depth:
@@ -78,7 +78,7 @@ class NXGBoost(object):
     def split_attempt(self, node, eta, lambd, G, H):
         samples = node['samples']
 
-        max_score = -np.inf
+        max_gain = -np.inf
         split_k = None
         split_val = None
         split_samples_l = None
@@ -94,16 +94,16 @@ class NXGBoost(object):
                 GL += self.loss_func.G(sample['prediction'], sample['target'])
                 HL += self.loss_func.H(sample['prediction'], sample['target'])
                 GR = G - GL
-                HR = G - HL
-                score = GL**2/(HL + lambd) + GR**2/(GR + lambd) - G**2/(H + lambd)
-                if max_score < score:
+                HR = H - HL
+                gain = GL**2/(HL + lambd) + GR**2/(HR + lambd) - G**2/(H + lambd)
+                if max_gain < gain:
                     split_k = k
                     split_val = sample['features'][k]
                     split_w_l = -GL/(HL + lambd) * eta
                     split_w_r = -GR/(HR + lambd) * eta
                     split_samples_l = sorted_samples[:j]
                     split_samples_r = sorted_samples[j:]
-                    max_score = score
+                    max_gain = gain
 
         children = []
 
@@ -129,11 +129,11 @@ class NXGBoost(object):
                 'samples': split_samples_r,
             })
 
-        # The score is negatived to fit the min heap
+        # The gain is negatived to fit the min heap
         if len(children) == 2:
-            return -max_score, node, children[0], children[1], split_k, split_val
+            return max_gain, node, children[0], children[1], split_k, split_val
         else:
-            return np.inf, None, None, None, None, None
+            return -np.inf, None, None, None, None, None
 
     def refresh_prediction(self, node):
         if node is None:

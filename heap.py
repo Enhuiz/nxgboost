@@ -1,7 +1,7 @@
-class Heap(object):
-    def __init__(self, cmp):
+class MaxHeap(object):
+    def __init__(self, key):
         self.l = [0]
-        self.cmp = cmp
+        self.key = key
 
     def push(self, v):
         self.l[0] += 1
@@ -13,11 +13,14 @@ class Heap(object):
             self.l[i] = v
 
         p = i / 2
-        while p >= 1 and self.cmp(self.l[p], self.l[i]) < 0:
+        while p >= 1 and self.key(self.l[i]) > self.key(self.l[p]):
             self.l[p], self.l[i] = self.l[i], self.l[p]
             i, p = p, p / 2
 
     def pop(self):
+        if self.l[0] == 0:
+            raise Exception("Empty Heap")
+
         self.l[1], self.l[self.l[0]] = self.l[self.l[0]], self.l[1]
         self.l[0] -= 1
 
@@ -29,13 +32,13 @@ class Heap(object):
             if lc >= self.l[0]:
                 break
             elif rc >= self.l[0]:
-                maxc = lc
+                minc = lc
             else:
-                maxc = rc if self.cmp(self.l[lc], self.l[rc]) < 0 else lc
+                minc = lc if self.key(self.l[lc]) > self.key(self.l[rc]) else rc
 
-            if self.cmp(self.l[i], self.l[maxc]) < 0:
-                self.l[i], self.l[maxc] = self.l[maxc], self.l[i]
-                i = maxc
+            if self.key(self.l[minc]) > self.key(self.l[i]):
+                self.l[i], self.l[minc] = self.l[minc], self.l[i]
+                i = minc
             else:
                 break
 
@@ -43,3 +46,6 @@ class Heap(object):
 
     def __len__(self):
         return self.l[0]
+
+    def __str__(self):
+        return str([self.key(item) for item in self.l[1:]])
