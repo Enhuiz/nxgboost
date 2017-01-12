@@ -30,7 +30,7 @@ Some comparision result will be generated into the **/fig** folder.
 Sometimes nxgboost outruns random forest, but in most data sets random forest seems to be better. The result maybe different when different parameters are set.
 
 ##Parameters
-- n_estimators of both model 50
-- max_depth of both model 10
-- lambda of nxgboost 0.13
-- eta of nxgboost 0.15
+- n_estimators of both model:  **50**
+- max_depth of both model:     **10**
+- lambda of nxgboost:          **0.13**
+- eta of nxgboost:             **0.15**
