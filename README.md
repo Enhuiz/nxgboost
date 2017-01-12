@@ -14,6 +14,7 @@ To run this, the following python package is needed.
 - numpy 
 - matplotlib
 - seaborn 
+- pandas
 - sklearn (provide the random foreset method to make a comparision with our nxgboost)
 
 ##Run it
