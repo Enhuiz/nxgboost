@@ -21,4 +21,4 @@ To run this, the following python package is needed.
 ```
 $ python main.py
 ```
-Some comparision result will be generated into the fig folder.
+Some comparision result will be generated into the **/fig** folder.
